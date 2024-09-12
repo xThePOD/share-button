@@ -2,11 +2,11 @@ import { Button, Frog } from 'frog';
 import { devtools } from 'frog/dev';
 import { serveStatic } from 'frog/serve-static';
 import { handle } from 'frog/vercel';
-import axios from 'axios'; // Importing axios to handle HTTP requests
+import axios from 'axios'; // We'll use axios to interact with Neynar API
 import { neynar } from 'frog/middlewares';
 
 // Set up your Neynar API key
-const apiKey = '0D6B6425-87D9-4548-95A2-36D107C12421';  // <-- REPLACE THIS with your actual API key
+const apiKey = 'your-neynar-api-key';  // <-- REPLACE THIS with your actual Neynar API key
 
 // Initialize the Neynar API for Farcaster integration
 export const app = new Frog({
@@ -20,34 +20,34 @@ export const app = new Frog({
   })
 );
 
-// Function to publish the cast using the Neynar API
-async function publishCast(message: string) {
+// Function to publish the draft cast using the Neynar API
+async function openDraftCast(message: string) {
   try {
-    // Send a POST request to the Neynar API
+    // Use the Neynar API directly with axios to create a draft cast
     const response = await axios.post(
-      'https://hub-api.neynar.com/v1/cast', // Neynar API endpoint to publish a cast
+      'https://hub-api.neynar.com/v1/cast',
       {
-        text: message,   // Prewritten message to be casted
-        interactor: true // Enables interaction with the cast
+        text: message,  // Prewritten message for the cast
+        interactor: true // Enable interactor if needed
       },
       {
         headers: {
-          'Authorization': `Bearer ${apiKey}`,  // Use the API key to authenticate the request
-          'Content-Type': 'application/json',  // Specify the content type
+          'Authorization': `Bearer ${apiKey}`,  // Use the API key for authentication
+          'Content-Type': 'application/json',
         }
       }
     );
-
-    console.log('Cast published successfully:', response.data); // Log the successful response
-    return response.data;  // Return the response data
+    
+    console.log('Draft cast opened successfully:', response.data);
+    return response.data;
   } catch (error) {
-    // Use the instanceof check to safely handle the error
+    // Handle any errors when opening the cast
     if (error instanceof Error) {
-      console.error('Error publishing cast:', error.message);  // Access error message safely
+      console.error('Error opening draft cast:', error.message);
     } else {
-      console.error('Unknown error occurred:', error);  // Handle unknown error cases
+      console.error('Unknown error occurred:', error);
     }
-    return null;  // Return null if there's an error
+    return null;
   }
 }
 
@@ -65,17 +65,58 @@ app.frame('/', async (c) => {
     message = `I like ${selectedFruit.toUpperCase()}! Follow me, the creator!`; // Prewritten cast message
   }
 
-  // If the user clicks the "Post to Farcaster" button, publish the cast
-  if (buttonValue === 'post_to_farcaster') {
-    const result = await publishCast(message); // Call the publishCast function
+  // If the user clicks the "Share" button, open the draft cast
+  if (buttonValue === 'open_cast') {
+    const result = await openDraftCast(message); // Open a draft cast using the Neynar API
     if (result) {
-      return c.res({ image: 'Cast posted successfully!' });
+      return c.res({ image: 'Draft cast opened successfully! Ready to publish.' });
     } else {
-      return c.res({ image: 'Error posting the cast.' });
+      return c.res({ image: 'Error opening the draft cast.' });
     }
   }
 
-  // Return the frame's response with buttons and intents
+  // If a fruit is selected, move to the next frame to display the choice and share option
+  if (fruitSelected) {
+    return c.res({
+      image: (
+        <div
+          style={{
+            alignItems: 'center',
+            background: 'linear-gradient(to right, #432889, #17101F)',
+            backgroundSize: '100% 100%',
+            display: 'flex',
+            flexDirection: 'column',
+            flexWrap: 'nowrap',
+            height: '100%',
+            justifyContent: 'center',
+            textAlign: 'center',
+            width: '100%',
+          }}
+        >
+          <div
+            style={{
+              color: 'white',
+              fontSize: 60,
+              fontStyle: 'normal',
+              letterSpacing: '-0.025em',
+              lineHeight: 1.4,
+              marginTop: 30,
+              padding: '0 120px',
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {`You selected ${buttonValue!.toUpperCase()}. Ready to share?`}
+          </div>
+        </div>
+      ),
+      intents: [
+        <Button value="open_cast">Share on Farcaster</Button>, // Opens the draft cast
+        <Button.Reset>Cancel</Button.Reset>, // Option to reset the frame
+      ],
+    });
+  }
+
+  // Default welcome screen if no fruit has been selected
   return c.res({
     image: (
       <div
@@ -104,35 +145,16 @@ app.frame('/', async (c) => {
             whiteSpace: 'pre-wrap',
           }}
         >
-          {isSharing
-            ? `Ready to share: ${message}` // Display the prewritten cast message
-            : fruitSelected
-            ? `Nice choice. ${buttonValue!.toUpperCase()}!!` // Display the selected fruit
-            : 'Welcome! Select your favorite fruit!'} // Default welcome message
+          {'Welcome! Select your favorite fruit!'}
         </div>
       </div>
     ),
-    intents: 
-      isSharing
-        ? [
-            <Button value="post_to_farcaster">Post to Farcaster</Button>, // Button to post the cast
-            <Button value="apples">Apples</Button>,
-            <Button value="oranges">Oranges</Button>,
-            <Button.Reset>Reset</Button.Reset>, // Button to reset the frame
-          ]
-        : fruitSelected
-        ? [
-            <Button value={`share_${buttonValue}`}>Share on Farcaster</Button>, // Button to share the selected fruit
-            <Button value="apples">Apples</Button>,
-            <Button value="oranges">Oranges</Button>,
-            <Button value="bananas">Bananas</Button>,
-          ]
-        : [
-            <Button value="apples">Apples</Button>, // Button to select apples
-            <Button value="oranges">Oranges</Button>, // Button to select oranges
-            <Button value="bananas">Bananas</Button>, // Button to select bananas
-            <Button.Reset>Cancel</Button.Reset>, // Button to cancel the selection
-          ],
+    intents: [
+      <Button value="apples">Apples</Button>, // Button to select apples
+      <Button value="oranges">Oranges</Button>, // Button to select oranges
+      <Button value="bananas">Bananas</Button>, // Button to select bananas
+      <Button.Reset>Cancel</Button.Reset>, // Button to reset the selection
+    ],
   });
 });
 
