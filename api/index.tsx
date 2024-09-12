@@ -20,6 +20,7 @@ export const app = new Frog({
 
 // Function to publish the cast using the Neynar API
 async function publishCast(message: string) {
+  console.log('Attempting to publish cast:', message);
   try {
     const response = await axios.post(
       'https://hub-api.neynar.com/v1/cast',
@@ -37,6 +38,11 @@ async function publishCast(message: string) {
     console.log('Cast published successfully:', response.data);
     return response.data;
   } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error('Axios error:', error.response?.data || error.message);
+    } else {
+      console.error('Unexpected error:', error);
+    }
     console.error('Error publishing cast:', error);
     return null;
   }
@@ -45,6 +51,7 @@ async function publishCast(message: string) {
 // Main frame logic
 app.frame('/', async (c) => {
   const { buttonValue } = c;
+  console.log('Button pressed:', buttonValue);
   
   const fruitSelected = buttonValue && ['apples', 'oranges', 'bananas'].includes(buttonValue);
   const isSharing = buttonValue && buttonValue.startsWith('share_');
@@ -56,8 +63,10 @@ app.frame('/', async (c) => {
   }
 
   if (buttonValue === 'post_to_farcaster') {
+    console.log('Attempting to post to Farcaster:', message);
     const result = await publishCast(message);
     if (result) {
+      console.log('Cast posted successfully');
       return c.res({
         image: (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', background: 'linear-gradient(to right, #432889, #17101F)', color: 'white', fontSize: 32, textAlign: 'center' }}>
@@ -66,6 +75,7 @@ app.frame('/', async (c) => {
         )
       });
     } else {
+      console.log('Error posting cast');
       return c.res({
         image: (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', background: 'linear-gradient(to right, #432889, #17101F)', color: 'white', fontSize: 32, textAlign: 'center' }}>
