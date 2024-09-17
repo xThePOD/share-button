@@ -1,108 +1,84 @@
-import { Frog, Button } from 'frog';  // Make sure Button is imported
-import { devtools } from 'frog/dev';
-import { serveStatic } from 'frog/serve-static';
-import { handle } from 'frog/vercel';
+import { Frog, Button } from 'frog';  // Import Frog and Button
+import { devtools } from 'frog/dev';  // Import devtools
+import { serveStatic } from 'frog/serve-static';  // Import serveStatic
+import { handle } from 'frog/vercel';  // Import handle for routing on Vercel
 import axios from 'axios';
 
-// Example: Replace with the actual frame image URL (could be generated or hosted)
-const frameImageUrl = 'https://share-button-tau.vercel.app/api';
-
-// Neynar API base URL (replace with actual API key and endpoint)
-const apiKey = 'YOUR_NEYNAR_API_KEY'; // Replace this with your actual Neynar API key
+// Neynar API base URL and your API key (replace with actual values)
+const apiKey = '63FC33FA-82AF-466A-B548-B3D906ED2314'; // Replace this with your actual Neynar API key
 const apiBaseUrl = 'https://api.farcaster.xyz/v2';
 
-// Retry logic function for API calls
-const retryApiCall = async (url: string, headers: object, retries = 3) => {
-  let attempt = 0;
-  while (attempt < retries) {
-    try {
-      const response = await axios.get(url, { headers });
-      return response.data;
-    } catch (error: any) {
-      attempt++;
-      console.error(`Attempt ${attempt} failed:`, error.message);
-      if (attempt >= retries) throw error;
-    }
-  }
-};
+// Initialize Frog App
+const app = new Frog({
+  assetsPath: '/',
+  basePath: '/api',
+  title: 'Verification Frame App',
+});
 
-// Function to get the current user's FID from the Farcaster API
+// Function to automatically get the current user's FID from the Farcaster API
 const getCurrentUserFID = async () => {
   try {
-    const url = `${apiBaseUrl}/me`;
     const headers = {
       Authorization: `Bearer ${apiKey}`,
     };
-
-    // Make the API request with retry logic
-    const responseData = await retryApiCall(url, headers);
-    return responseData.result.fid; // Return the FID of the user
+    
+    // Call to fetch the logged-in user's FID
+    const response = await axios.get(`${apiBaseUrl}/me`, { headers });
+    
+    return response.data.result.fid; // Return the FID of the logged-in user
   } catch (error: any) {
     console.error('Failed to fetch current user FID:', error.response?.data || error.message);
     return null;
   }
 };
 
-// Function to check if the user meets all conditions (followed, liked, recasted)
-const checkUserStatus = async (fid: string) => {
+// Function to verify if the user has liked, recasted, and followed
+const verifyUserStatus = async (fid: string, castHash: string) => {
   try {
-    const url = `${apiBaseUrl}/user/${fid}`;
     const headers = {
       Authorization: `Bearer ${apiKey}`,
     };
 
-    // Make the API request with retry logic
-    const responseData = await retryApiCall(url, headers);
-    const hasFollowed = responseData.user.following;
-    const hasLiked = responseData.user.likes;
-    const hasRecasted = responseData.user.recasts;
+    // API call to check if user has liked, recasted, and followed
+    const response = await axios.get(`${apiBaseUrl}/user/${fid}`, { headers });
+    const userData = response.data;
 
-    return hasFollowed && hasLiked && hasRecasted;
+    const hasLiked = userData.user.likes.includes(castHash);  // Check if the user liked the cast
+    const hasRecasted = userData.user.recasts.includes(castHash);  // Check if the user recasted the cast
+    const hasFollowed = userData.user.following.includes('14871');  // Check if the user is following you
+
+    return hasLiked && hasRecasted && hasFollowed;
   } catch (error: any) {
-    console.error('API call failed:', error.response?.data || error.message);
+    console.error('Verification failed:', error.response?.data || error.message);
     return false;
   }
 };
 
-// Initialize Frog App
-const app = new Frog({
-  assetsPath: '/',
-  basePath: '/api',
-  title: 'Two Frame App',
-});
-
-// Frame 1: Display "Enter" button and auto-detect user FID
-app.frame('/', async (c: any) => {
+// Frame 1: Display "Press Enter" and a button
+app.frame('/', async (c) => {
   const { buttonValue } = c;
 
-  // Detect the current user FID
-  const userFID = await getCurrentUserFID();
-
-  if (!userFID) {
-    return c.res({
-      image: (
-        <div style={{ color: 'red', fontSize: 30, textAlign: 'center' }}>
-          Could not detect your Farcaster user account. Please make sure you're logged in.
-        </div>
-      ),
-    });
-  }
-
   if (buttonValue === 'enter') {
-    // Check user status when they click the "Enter" button
-    const isEligible = await checkUserStatus(userFID);
+    // Auto-detect the user's FID from the API
+    const userFID = await getCurrentUserFID();
+    
+    if (!userFID) {
+      return c.res({
+        image: (
+          <div style={{ color: 'red', fontSize: 30, textAlign: 'center' }}>
+            Could not detect your Farcaster user account. Please make sure you're logged in.
+          </div>
+        ),
+      });
+    }
 
-    if (isEligible) {
-      // Define composerUrl inside this block
-      const resultMessage = "Welcome to the pod!";
-      const composedMessage = encodeURIComponent(
-        `Join the pod! ${resultMessage} 🌐`
-      );
+    const castHash = '0x83faf84b';  // Replace this with the cast hash you're verifying
 
-      // Share URL with embedded frame URL
-      const composerUrl = `https://warpcast.com/~/compose?text=${composedMessage}&embeds[]=${frameImageUrl}`;
+    // Verify if the user has liked, recasted, and followed
+    const isVerified = await verifyUserStatus(userFID, castHash);
 
-      // Render Frame 2 content
+    if (isVerified) {
+      // Move to Frame 2 (Welcome to the pod) if verification is successful
       return c.res({
         image: (
           <div
@@ -120,13 +96,10 @@ app.frame('/', async (c: any) => {
             <div style={{ color: 'white', fontSize: 60 }}>Welcome to the pod!</div>
           </div>
         ),
-        intents: [
-          <Button.Link href={composerUrl}>Share on Farcaster</Button.Link>, // Share button with composer URL
-          <Button value="reset">Reset</Button>, // Reset button to go back to Frame 1
-        ],
+        intents: [<Button value="reset">Reset</Button>],  // Reset button
       });
     } else {
-      // Show error message if user does not meet conditions
+      // Show an error message if the user hasn't liked, recasted, or followed
       return c.res({
         image: (
           <div
@@ -142,7 +115,7 @@ app.frame('/', async (c: any) => {
             }}
           >
             <div style={{ color: 'white', fontSize: 30 }}>
-              Please follow, like, and recast before proceeding.
+              Please like, recast, and follow before proceeding.
             </div>
           </div>
         ),
@@ -166,37 +139,14 @@ app.frame('/', async (c: any) => {
           width: '100%',
         }}
       >
-        <div style={{ color: 'white', fontSize: 60 }}>Enter</div>
+        <div style={{ color: 'white', fontSize: 60 }}>Press Enter</div>
       </div>
     ),
-    intents: [<Button value="enter">Enter</Button>],
+    intents: [<Button value="enter">Enter</Button>],  // One button that triggers verification
   });
 });
 
-// Reset Frame (logic to reset the flow)
-app.frame('/reset', (c: any) => {
-  return c.res({
-    image: (
-      <div
-        style={{
-          alignItems: 'center',
-          background: 'linear-gradient(to right, #432889, #17101F)',
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          justifyContent: 'center',
-          textAlign: 'center',
-          width: '100%',
-        }}
-      >
-        <div style={{ color: 'white', fontSize: 60 }}>Enter</div>
-      </div>
-    ),
-    intents: [<Button value="enter">Enter</Button>],
-  });
-});
-
-// Enable development tools and static asset serving
+// Enable development tools
 const isProduction = process.env.NODE_ENV === 'production';
 devtools(app, isProduction ? { assetsPath: '/.frog' } : { serveStatic });
 
