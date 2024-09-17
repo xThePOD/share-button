@@ -21,32 +21,17 @@ const app = new Frog({
   title: 'Verification Frame App',
 });
 
-// Function to automatically get the current user's FID from the Neynar API
-const getCurrentUserFID = async () => {
-  try {
-    const headers = {
-      Authorization: `Bearer ${apiKey}`,
-    };
-    
-    // Call to fetch the logged-in user's FID
-    const response = await axios.get(`${apiBaseUrl}/me`, { headers });
-    
-    return response.data.result.fid; // Return the FID of the logged-in user
-  } catch (error: any) {
-    console.error('Failed to fetch current user FID:', error.response?.data || error.message);
-    return null;
-  }
-};
-
 // Function to verify if the user has liked, recasted, and followed
-const verifyUserStatus = async (fid: string) => {
+const verifyUserStatus = async () => {
   try {
     const headers = {
       Authorization: `Bearer ${apiKey}`,
     };
 
+    // Assuming we can retrieve the user's session directly in the backend
     // API call to check if user has liked, recasted, and followed
-    const response = await axios.get(`${apiBaseUrl}/user/${fid}`, { headers });
+    const response = await axios.get(`${apiBaseUrl}/user/me`, { headers });  // Directly use the user's session
+
     const userData = response.data;
 
     const hasLiked = userData.user.likes.includes(castHash);  // Check if the user liked the cast
@@ -65,21 +50,8 @@ app.frame('/', async (c) => {
   const { buttonValue } = c;
 
   if (buttonValue === 'enter') {
-    // Auto-detect the user's FID from the Neynar API
-    const userFID = await getCurrentUserFID();
-    
-    if (!userFID) {
-      return c.res({
-        image: (
-          <div style={{ color: 'red', fontSize: 30, textAlign: 'center' }}>
-            Could not detect your Farcaster user account. Please make sure you're logged in.
-          </div>
-        ),
-      });
-    }
-
-    // Verify if the user has liked, recasted, and followed
-    const isVerified = await verifyUserStatus(userFID);
+    // Skip fetching FID and go straight to verification using user's session
+    const isVerified = await verifyUserStatus();
 
     if (isVerified) {
       // Move to Frame 2 (Welcome to the pod) if verification is successful
