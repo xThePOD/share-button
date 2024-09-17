@@ -1,60 +1,51 @@
-import { Frog, Button } from 'frog';  // Import Frog and Button
-import { devtools } from 'frog/dev';  // Import devtools
-import { serveStatic } from 'frog/serve-static';  // Import serveStatic
-import { handle } from 'frog/vercel';  // Import handle for routing on Vercel
+import { Frog, Button } from 'frog';
+import { devtools } from 'frog/dev';
+import { serveStatic } from 'frog/serve-static';
+import { handle } from 'frog/vercel';
 import axios from 'axios';
 
-// Neynar API base URL and your API key
-const apiKey = '63FC33FA-82AF-466A-B548-B3D906ED2314';  // Replace this with your actual Neynar API key
-const apiBaseUrl = 'https://api.neynar.xyz/v2';  // Neynar API base URL
+const apiKey = '63FC33FA-82AF-466A-B548-B3D906ED2314';
+const apiBaseUrl = 'https://api.neynar.xyz/v2';
+const castHash = '0x83faf84b';
+const yourFID = '14871';
 
-// Replace with the actual cast hash for the post you want to verify
-const castHash = '0x83faf84b';  // Replace with the actual cast hash you are verifying
-
-// Replace with your FID (Farcaster ID) so we know who the user should follow
-const yourFID = '14871';  // Replace this with your actual FID (Farcaster ID)
-
-// Initialize Frog App
 const app = new Frog({
   assetsPath: '/',
   basePath: '/api',
   title: 'Verification Frame App',
 });
 
-// Function to verify if the user has liked, recasted, and followed
 const verifyUserStatus = async () => {
   try {
     const headers = {
       Authorization: `Bearer ${apiKey}`,
     };
 
-    // Assuming we can retrieve the user's session directly in the backend
-    // API call to check if user has liked, recasted, and followed
-    const response = await axios.get(`${apiBaseUrl}/user/me`, { headers });  // Directly use the user's session
-
+    const response = await axios.get(`${apiBaseUrl}/user/me`, { headers });
     const userData = response.data;
 
-    const hasLiked = userData.user.likes.includes(castHash);  // Check if the user liked the cast
-    const hasRecasted = userData.user.recasts.includes(castHash);  // Check if the user recasted the cast
-    const hasFollowed = userData.user.following.includes(yourFID);  // Check if the user is following you
+    const hasLiked = userData.user.likes.includes(castHash);
+    const hasRecasted = userData.user.recasts.includes(castHash);
+    const hasFollowed = userData.user.following.includes(yourFID);
 
     return hasLiked && hasRecasted && hasFollowed;
-  } catch (error: any) {
-    console.error('Verification failed:', error.response?.data || error.message);
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('Verification failed:', error.message);
+    } else {
+      console.error('Verification failed:', error);
+    }
     return false;
   }
 };
 
-// Frame 1: Display "Press Enter" and a button
 app.frame('/', async (c) => {
   const { buttonValue } = c;
 
   if (buttonValue === 'enter') {
-    // Skip fetching FID and go straight to verification using user's session
     const isVerified = await verifyUserStatus();
 
     if (isVerified) {
-      // Move to Frame 2 (Welcome to the pod) if verification is successful
       return c.res({
         image: (
           <div
@@ -72,10 +63,9 @@ app.frame('/', async (c) => {
             <div style={{ color: 'white', fontSize: 60 }}>Welcome to the pod!</div>
           </div>
         ),
-        intents: [<Button value="reset">Reset</Button>],  // Reset button
+        intents: [<Button value="reset">Reset</Button>],
       });
     } else {
-      // Show an error message if the user hasn't liked, recasted, or followed
       return c.res({
         image: (
           <div
@@ -100,7 +90,6 @@ app.frame('/', async (c) => {
     }
   }
 
-  // Initial display: Frame 1 with Enter button
   return c.res({
     image: (
       <div
@@ -118,11 +107,10 @@ app.frame('/', async (c) => {
         <div style={{ color: 'white', fontSize: 60 }}>Press Enter</div>
       </div>
     ),
-    intents: [<Button value="enter">Enter</Button>],  // One button that triggers verification
+    intents: [<Button value="enter">Enter</Button>],
   });
 });
 
-// Enable development tools
 const isProduction = process.env.NODE_ENV === 'production';
 devtools(app, isProduction ? { assetsPath: '/.frog' } : { serveStatic });
 
