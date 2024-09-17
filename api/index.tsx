@@ -1,4 +1,4 @@
-import { Button, Frog } from 'frog';
+import { Frog, Button } from 'frog';  // Make sure Button is imported
 import { devtools } from 'frog/dev';
 import { serveStatic } from 'frog/serve-static';
 import { handle } from 'frog/vercel';
@@ -8,28 +8,37 @@ import axios from 'axios';
 const frameImageUrl = 'https://share-button-tau.vercel.app/api';
 
 // Neynar API base URL (replace with actual API key and endpoint)
-const neynarApiBase = 'https://api.farcaster.xyz/v2';
-const apiKey = '0D6B6425-87D9-4548-95A2-36D107C12421'; // Replace this with your actual Neynar API key
+const apiKey = 'YOUR_NEYNAR_API_KEY'; // Replace this with your actual Neynar API key
+const apiBaseUrl = 'https://api.farcaster.xyz/v2';
 
-export const app = new Frog({
-  assetsPath: '/',
-  basePath: '/api',
-  title: 'Two Frame App',
-});
+// Retry logic function for API calls
+const retryApiCall = async (url: string, headers: object, retries = 3) => {
+  let attempt = 0;
+  while (attempt < retries) {
+    try {
+      const response = await axios.get(url, { headers });
+      return response.data;
+    } catch (error: any) {
+      attempt++;
+      console.error(`Attempt ${attempt} failed:`, error.message);
+      if (attempt >= retries) throw error;
+    }
+  }
+};
 
 // Function to get the current user's FID from the Farcaster API
 const getCurrentUserFID = async () => {
   try {
-    // Farcaster provides the user session and FID, assuming you have API access or the user is logged in
-    const response = await axios.get(`${neynarApiBase}/me`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    });
+    const url = `${apiBaseUrl}/me`;
+    const headers = {
+      Authorization: `Bearer ${apiKey}`,
+    };
 
-    return response.data.result.fid; // Return the FID of the user
-  } catch (error) {
-    console.error('Failed to fetch current user FID:', error);
+    // Make the API request with retry logic
+    const responseData = await retryApiCall(url, headers);
+    return responseData.result.fid; // Return the FID of the user
+  } catch (error: any) {
+    console.error('Failed to fetch current user FID:', error.response?.data || error.message);
     return null;
   }
 };
@@ -37,27 +46,33 @@ const getCurrentUserFID = async () => {
 // Function to check if the user meets all conditions (followed, liked, recasted)
 const checkUserStatus = async (fid: string) => {
   try {
-    const response = await axios.get(`${neynarApiBase}/user/${fid}`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    });
+    const url = `${apiBaseUrl}/user/${fid}`;
+    const headers = {
+      Authorization: `Bearer ${apiKey}`,
+    };
 
-    const data = response.data;
-
-    const hasFollowed = data.user.following;
-    const hasLiked = data.user.likes;
-    const hasRecasted = data.user.recasts;
+    // Make the API request with retry logic
+    const responseData = await retryApiCall(url, headers);
+    const hasFollowed = responseData.user.following;
+    const hasLiked = responseData.user.likes;
+    const hasRecasted = responseData.user.recasts;
 
     return hasFollowed && hasLiked && hasRecasted;
-  } catch (error) {
-    console.error('API call failed:', error);
+  } catch (error: any) {
+    console.error('API call failed:', error.response?.data || error.message);
     return false;
   }
 };
 
+// Initialize Frog App
+const app = new Frog({
+  assetsPath: '/',
+  basePath: '/api',
+  title: 'Two Frame App',
+});
+
 // Frame 1: Display "Enter" button and auto-detect user FID
-app.frame('/', async (c) => {
+app.frame('/', async (c: any) => {
   const { buttonValue } = c;
 
   // Detect the current user FID
@@ -159,7 +174,7 @@ app.frame('/', async (c) => {
 });
 
 // Reset Frame (logic to reset the flow)
-app.frame('/reset', (c) => {
+app.frame('/reset', (c: any) => {
   return c.res({
     image: (
       <div
