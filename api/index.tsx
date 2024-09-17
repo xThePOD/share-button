@@ -4,9 +4,15 @@ import { serveStatic } from 'frog/serve-static';  // Import serveStatic
 import { handle } from 'frog/vercel';  // Import handle for routing on Vercel
 import axios from 'axios';
 
-// Neynar API base URL and your API key (replace with actual values)
-const apiKey = '63FC33FA-82AF-466A-B548-B3D906ED2314'; // Replace this with your actual Neynar API key
-const apiBaseUrl = 'https://api.farcaster.xyz/v2';
+// Neynar API base URL and your API key
+const apiKey = '63FC33FA-82AF-466A-B548-B3D906ED2314';  // Replace this with your actual Neynar API key
+const apiBaseUrl = 'https://api.neynar.xyz/v2';  // Neynar API base URL
+
+// Replace with the actual cast hash for the post you want to verify
+const castHash = '0x83faf84b';  // Replace with the actual cast hash you are verifying
+
+// Replace with your FID (Farcaster ID) so we know who the user should follow
+const yourFID = '14871';  // Replace this with your actual FID (Farcaster ID)
 
 // Initialize Frog App
 const app = new Frog({
@@ -15,7 +21,7 @@ const app = new Frog({
   title: 'Verification Frame App',
 });
 
-// Function to automatically get the current user's FID from the Farcaster API
+// Function to automatically get the current user's FID from the Neynar API
 const getCurrentUserFID = async () => {
   try {
     const headers = {
@@ -33,7 +39,7 @@ const getCurrentUserFID = async () => {
 };
 
 // Function to verify if the user has liked, recasted, and followed
-const verifyUserStatus = async (fid: string, castHash: string) => {
+const verifyUserStatus = async (fid: string) => {
   try {
     const headers = {
       Authorization: `Bearer ${apiKey}`,
@@ -45,7 +51,7 @@ const verifyUserStatus = async (fid: string, castHash: string) => {
 
     const hasLiked = userData.user.likes.includes(castHash);  // Check if the user liked the cast
     const hasRecasted = userData.user.recasts.includes(castHash);  // Check if the user recasted the cast
-    const hasFollowed = userData.user.following.includes('14871');  // Check if the user is following you
+    const hasFollowed = userData.user.following.includes(yourFID);  // Check if the user is following you
 
     return hasLiked && hasRecasted && hasFollowed;
   } catch (error: any) {
@@ -59,7 +65,7 @@ app.frame('/', async (c) => {
   const { buttonValue } = c;
 
   if (buttonValue === 'enter') {
-    // Auto-detect the user's FID from the API
+    // Auto-detect the user's FID from the Neynar API
     const userFID = await getCurrentUserFID();
     
     if (!userFID) {
@@ -72,10 +78,8 @@ app.frame('/', async (c) => {
       });
     }
 
-    const castHash = '0x83faf84b';  // Replace this with the cast hash you're verifying
-
     // Verify if the user has liked, recasted, and followed
-    const isVerified = await verifyUserStatus(userFID, castHash);
+    const isVerified = await verifyUserStatus(userFID);
 
     if (isVerified) {
       // Move to Frame 2 (Welcome to the pod) if verification is successful
